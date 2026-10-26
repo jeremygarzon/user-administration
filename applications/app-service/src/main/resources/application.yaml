@@ -20,5 +20,33 @@ management:
     health:
       probes:
         enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
+adapter:
+  restconsumer:
+    timeout: 5000
+    url: "https://reqres.in"
+    api-key: ${REQRES_API_KEY}
+adapters:
+  r2dbc:
+    host: ${DB_HOST:localhost}
+    port: ${DB_PORT:5432}
+    database: ${DB_NAME:user_administration}
+    schema: ${DB_SCHEMA:public}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+resilience4j:
+  circuitbreaker:
+    instances:
+      reqres:
+        registerHealthIndicator: true
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        permittedNumberOfCallsInHalfOpenState: 3
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 10
+        waitDurationInOpenState: 10s
