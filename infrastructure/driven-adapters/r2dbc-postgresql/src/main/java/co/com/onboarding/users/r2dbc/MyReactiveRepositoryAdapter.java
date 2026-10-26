@@ -9,6 +9,7 @@ import org.reactivecommons.utils.ObjectMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Repository;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Repository
@@ -34,6 +35,12 @@ public class MyReactiveRepositoryAdapter
                 entity.getAvatar()
         ));
         this.template = template;
+    }
+
+    @Override
+    public Flux<User> findByName(String name) {
+        return repository.findByFirstNameContainingIgnoreCase(name)
+                .map(this::toEntity);
     }
 
     @Override
