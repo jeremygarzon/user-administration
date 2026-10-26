@@ -3,6 +3,8 @@ package co.com.onboarding.users.sqs.listener.helper;
 import co.com.onboarding.users.sqs.listener.config.SQSProperties;
 import lombok.Builder;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.Disposable;
+import reactor.core.Disposables;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
@@ -25,17 +27,23 @@ public class SQSListener {
     private final SqsAsyncClient client;
     private final SQSProperties properties;
     private final Function<Message, Mono<Void>> processor;
+    private final Disposable.Composite subscriptions = Disposables.composite();
     private String operation;
 
     public SQSListener start() {
         this.operation = "MessageFrom:" + properties.queueUrl();
         Scheduler scheduler = Schedulers.newParallel("sqs-pool", properties.numberOfThreads());
+        subscriptions.add(scheduler);
         for (var i = 0; i < properties.numberOfThreads(); i++) {
-            listenRetryRepeat()
+            subscriptions.add(listenRetryRepeat()
                     .subscribeOn(scheduler)
-                    .subscribe();
+                    .subscribe());
         }
         return this;
+    }
+
+    public void stop() {
+        subscriptions.dispose();
     }
 
     private Flux<Void> listenRetryRepeat() {

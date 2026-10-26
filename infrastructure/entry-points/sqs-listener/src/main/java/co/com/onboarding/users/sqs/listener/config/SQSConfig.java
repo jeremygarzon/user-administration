@@ -23,7 +23,7 @@ import java.util.function.Function;
 @Configuration
 public class SQSConfig {
 
-    @Bean
+    @Bean(destroyMethod = "stop")
     public SQSListener sqsListener(SqsAsyncClient client, SQSProperties properties, Function<Message, Mono<Void>> fn) {
         return SQSListener.builder()
                 .client(client)
