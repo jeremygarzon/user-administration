@@ -1,6 +1,7 @@
 package co.com.onboarding.users.sqs.listener.config;
 
 import co.com.onboarding.users.sqs.listener.helper.SQSListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import reactor.core.publisher.Mono;
@@ -33,6 +34,7 @@ public class SQSConfig {
     }
 
     @Bean
+    @ConditionalOnMissingBean(SqsAsyncClient.class)
     public SqsAsyncClient configSqs(SQSProperties properties, MetricPublisher publisher) {
         return SqsAsyncClient.builder()
                 .endpointOverride(resolveEndpoint(properties))
