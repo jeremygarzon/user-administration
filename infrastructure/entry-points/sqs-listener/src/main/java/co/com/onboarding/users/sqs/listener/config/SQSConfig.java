@@ -56,7 +56,7 @@ public class SQSConfig {
     }
 
     protected URI resolveEndpoint(SQSProperties properties) {
-        if (properties.endpoint() != null) {
+        if (properties.endpoint() != null && !properties.endpoint().isBlank()) {
             return URI.create(properties.endpoint());
         }
         return null;
