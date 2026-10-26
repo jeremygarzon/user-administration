@@ -27,10 +27,15 @@ public class CreateUserUseCase {
         return userProviderPort.findById(id)
                 .switchIfEmpty(Mono.error(() -> new UserNotFoundException(id)))
                 .flatMap(userRepositoryPort::save)
-                .doOnNext(this::publishCreatedEvent);
+                .flatMap(this::publishCreatedEvent);
     }
 
-    private void publishCreatedEvent(User user) {
-        userEventPublisherPort.publishUserCreated(user).subscribe();
+    private Mono<User> publishCreatedEvent(User user) {
+        return Mono.deferContextual(context -> {
+            userEventPublisherPort.publishUserCreated(user)
+                    .contextWrite(context)
+                    .subscribe();
+            return Mono.just(user);
+        });
     }
 }

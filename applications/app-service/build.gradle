@@ -2,4 +2,12 @@
 dependencies {
 	implementation 'software.amazon.awssdk:sts'
 	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
+	implementation 'org.springframework.boot:spring-boot-micrometer-tracing-brave'
+	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+
+	// Native DNS resolver used by Netty on macOS; avoids the fallback error at startup on local runs.
+	if (System.getProperty('os.name').startsWith('Mac')) {
+		def arch = System.getProperty('os.arch') == 'aarch64' ? 'osx-aarch_64' : 'osx-x86_64'
+		runtimeOnly "io.netty:netty-resolver-dns-native-macos::${arch}"
+	}
 }

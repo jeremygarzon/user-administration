@@ -4,7 +4,7 @@ import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.gateways.UserEventPublisherPort;
 import co.com.onboarding.users.sqs.sender.config.SQSSenderProperties;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
@@ -13,7 +13,7 @@ import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import tools.jackson.databind.json.JsonMapper;
 
 @Service
-@Log4j2
+@Slf4j
 @RequiredArgsConstructor
 public class SQSSender implements UserEventPublisherPort {
     private final SQSSenderProperties properties;

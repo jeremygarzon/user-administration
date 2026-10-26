@@ -14,9 +14,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import reactor.util.context.Context;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -120,5 +123,23 @@ class CreateUserUseCaseTest {
                 .verify();
 
         verify(userEventPublisherPort, never()).publishUserCreated(any());
+    }
+
+    @Test
+    void publishesEventWithTheCallerReactorContext() {
+        AtomicReference<String> tracedValue = new AtomicReference<>();
+        when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
+        when(userProviderPort.findById(USER_ID)).thenReturn(Mono.just(USER));
+        when(userRepositoryPort.save(USER)).thenReturn(Mono.just(USER));
+        when(userEventPublisherPort.publishUserCreated(USER)).thenReturn(Mono.deferContextual(context -> {
+            tracedValue.set(context.getOrDefault("trace", "missing"));
+            return Mono.empty();
+        }));
+
+        StepVerifier.create(createUserUseCase.execute(USER_ID).contextWrite(Context.of("trace", "abc")))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        assertThat(tracedValue.get()).isEqualTo("abc");
     }
 }

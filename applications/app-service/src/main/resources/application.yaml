@@ -5,12 +5,10 @@ spring:
     name: "UserAdministration"
   devtools:
     add-properties: false
-  h2:
-    console:
-      enabled: true
-      path: "/h2"
   profiles:
     include: null
+  reactor:
+    context-propagation: "auto"
   data:
     redis:
       host: "${REDIS_HOST:localhost}"
@@ -29,13 +27,16 @@ management:
   health:
     circuitbreakers:
       enabled: true
+  tracing:
+    sampling:
+      probability: 1.0
 cors:
   allowed-origins: "http://localhost:4200,http://localhost:8080"
 adapter:
   restconsumer:
     timeout: 5000
     url: "https://reqres.in"
-    api-key: "${REQRES_API_KEY}"
+    api-key: "${REQRES_API_KEY:}"
   sqs:
     region: "${AWS_REGION:us-east-1}"
     queueUrl: "${USER_EVENTS_QUEUE_URL:http://localhost:4566/000000000000/user-created-events}"

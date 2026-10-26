@@ -2,21 +2,26 @@ package co.com.onboarding.users.sqs.listener.helper;
 
 import co.com.onboarding.users.sqs.listener.config.SQSProperties;
 import lombok.Builder;
-import lombok.extern.log4j.Log4j2;
+import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import reactor.util.retry.Retry;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 
+import java.time.Duration;
 import java.util.function.Function;
 
-@Log4j2
+@Slf4j
 @Builder
 public class SQSListener {
+    private static final Duration MIN_POLL_BACKOFF = Duration.ofSeconds(1);
+    private static final Duration MAX_POLL_BACKOFF = Duration.ofSeconds(30);
+
     private final SqsAsyncClient client;
     private final SQSProperties properties;
     private final Function<Message, Mono<Void>> processor;
@@ -35,8 +40,11 @@ public class SQSListener {
 
     private Flux<Void> listenRetryRepeat() {
         return listen()
-                .doOnError(e -> log.error("Error listening sqs queue", e))
-                .repeat();
+                .repeat()
+                .retryWhen(Retry.backoff(Long.MAX_VALUE, MIN_POLL_BACKOFF)
+                        .maxBackoff(MAX_POLL_BACKOFF)
+                        .doBeforeRetry(signal -> log.warn("Error polling sqs queue {}, retry attempt {}: {}",
+                                properties.queueUrl(), signal.totalRetries() + 1, signal.failure().toString())));
     }
 
     private Flux<Void> listen() {
@@ -45,9 +53,13 @@ public class SQSListener {
                         .name("async_operation")
                         .tag("operation", operation)
                         .metrics()
-                        .then(confirm(message)),
-                        properties.maxNumberOfMessages())
-                .onErrorContinue((e, o) -> log.error("Error listening sqs message", e));
+                        .then(confirm(message))
+                        .onErrorResume(error -> {
+                            log.error("Error processing sqs message {}, it will be redelivered",
+                                    message.messageId(), error);
+                            return Mono.empty();
+                        }),
+                        properties.maxNumberOfMessages());
     }
 
     private Mono<Void> confirm(Message message) {
