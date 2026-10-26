@@ -11,4 +11,6 @@ public interface UserRepositoryPort {
     Mono<User> save(User user);
 
     Flux<User> findAll();
+
+    Flux<User> findByName(String name);
 }

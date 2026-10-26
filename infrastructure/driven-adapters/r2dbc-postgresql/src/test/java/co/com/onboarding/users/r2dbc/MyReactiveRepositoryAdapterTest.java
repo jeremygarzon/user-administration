@@ -83,6 +83,16 @@ class MyReactiveRepositoryAdapterTest {
     }
 
     @Test
+    void mustFindByName() {
+        when(repository.findByFirstNameContainingIgnoreCase("geo"))
+                .thenReturn(Flux.just(createUserEntity()));
+
+        StepVerifier.create(repositoryAdapter.findByName("geo"))
+                .expectNext(createUser())
+                .verifyComplete();
+    }
+
+    @Test
     void mustFindByExample() {
         UserEntity entity = createUserEntity();
         User user = createUser();

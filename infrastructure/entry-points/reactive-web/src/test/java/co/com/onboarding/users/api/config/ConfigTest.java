@@ -6,6 +6,7 @@ import co.com.onboarding.users.api.error.ApiErrorHandler;
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
 import co.com.onboarding.users.usecase.CreateUserUseCase;
+import co.com.onboarding.users.usecase.FindUsersUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -27,6 +28,9 @@ class ConfigTest {
 
     @MockitoBean
     private CreateUserUseCase createUserUseCase;
+
+    @MockitoBean
+    private FindUsersUseCase findUsersUseCase;
 
     @Test
     void corsConfigurationShouldAllowOrigins() {
