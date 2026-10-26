@@ -9,12 +9,16 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.reactivecommons.utils.ObjectMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Example;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -28,6 +32,9 @@ class MyReactiveRepositoryAdapterTest {
 
     @Mock
     ObjectMapper mapper;
+
+    @Mock
+    R2dbcEntityTemplate template;
 
     private UserEntity createUserEntity() {
         return new UserEntity(
@@ -91,16 +98,32 @@ class MyReactiveRepositoryAdapterTest {
     }
 
     @Test
-    void mustSaveValue() {
+    void mustInsertValue() {
         User user = createUser();
         UserEntity entity = createUserEntity();
 
-        when(repository.save(any(UserEntity.class)))
+        when(template.insert(any(UserEntity.class)))
                 .thenReturn(Mono.just(entity));
 
         Mono<User> result = repositoryAdapter.save(user);
 
         StepVerifier.create(result)
+                .expectNext(createUser())
+                .verifyComplete();
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void mustReturnStoredValueWhenInsertHitsDuplicateKey() {
+        User user = createUser();
+        UserEntity entity = createUserEntity();
+
+        when(template.insert(any(UserEntity.class)))
+                .thenReturn(Mono.error(new DuplicateKeyException("duplicate key")));
+        when(repository.findById(1L)).thenReturn(Mono.just(entity));
+
+        StepVerifier.create(repositoryAdapter.save(user))
                 .expectNext(createUser())
                 .verifyComplete();
     }
