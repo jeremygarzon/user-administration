@@ -2,14 +2,22 @@ package co.com.onboarding.users.api.config;
 
 import co.com.onboarding.users.api.Handler;
 import co.com.onboarding.users.api.RouterRest;
+import co.com.onboarding.users.api.error.ApiErrorHandler;
+import co.com.onboarding.users.model.User;
+import co.com.onboarding.users.model.UserCreation;
+import co.com.onboarding.users.usecase.CreateUserUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Mono;
 
-@ContextConfiguration(classes = {RouterRest.class, Handler.class})
+import static org.mockito.Mockito.when;
+
+@ContextConfiguration(classes = {RouterRest.class, Handler.class, ApiErrorHandler.class})
 @WebFluxTest
 @Import({CorsConfig.class, SecurityHeadersConfig.class})
 class ConfigTest {
@@ -17,10 +25,16 @@ class ConfigTest {
     @Autowired
     private WebTestClient webTestClient;
 
+    @MockitoBean
+    private CreateUserUseCase createUserUseCase;
+
     @Test
     void corsConfigurationShouldAllowOrigins() {
-        webTestClient.get()
-                .uri("/api/usecase/path")
+        User user = new User(1L, "george.bluth@reqres.in", "George", "Bluth", null);
+        when(createUserUseCase.execute(1L)).thenReturn(Mono.just(new UserCreation(user, false)));
+
+        webTestClient.put()
+                .uri("/api/v1/users/1")
                 .exchange()
                 .expectStatus().isOk()
                 .expectHeader().valueEquals("Content-Security-Policy",
