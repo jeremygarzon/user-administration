@@ -6,8 +6,6 @@ import io.netty.handler.timeout.WriteTimeoutHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.client.reactive.ClientHttpConnector;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -19,6 +17,8 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 @Configuration
 public class RestConsumerConfig {
 
+    private static final String API_KEY_HEADER = "x-api-key";
+
     private final String url;
     private final int timeout;
     private final String apiKey;
@@ -26,27 +26,21 @@ public class RestConsumerConfig {
     public RestConsumerConfig(
             @Value("${adapter.restconsumer.url}") String url,
             @Value("${adapter.restconsumer.timeout}") int timeout,
-            @Value("${adapter.restconsumer.api-key}") String apiKey) {
+            @Value("${adapter.restconsumer.api-key:}") String apiKey) {
         this.url = url;
         this.timeout = timeout;
         this.apiKey = apiKey;
     }
 
     @Bean
-    public WebClient.Builder webClientBuilder() {
-        return WebClient.builder();
-    }
-
-    @Bean
     public WebClient getWebClient(WebClient.Builder builder) {
-        return builder
+        WebClient.Builder configured = builder.clone()
                 .baseUrl(url)
-                .defaultHeader(
-                        HttpHeaders.CONTENT_TYPE,
-                        MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader("x-api-key", apiKey)
-                .clientConnector(getClientHttpConnector())
-                .build();
+                .clientConnector(getClientHttpConnector());
+        if (!apiKey.isBlank()) {
+            configured.defaultHeader(API_KEY_HEADER, apiKey);
+        }
+        return configured.build();
     }
 
     private ClientHttpConnector getClientHttpConnector() {
