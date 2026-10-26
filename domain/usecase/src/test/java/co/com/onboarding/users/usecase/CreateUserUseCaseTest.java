@@ -1,6 +1,7 @@
 package co.com.onboarding.users.usecase;
 
 import co.com.onboarding.users.model.User;
+import co.com.onboarding.users.model.UserCreation;
 import co.com.onboarding.users.model.exception.UserNotFoundException;
 import co.com.onboarding.users.model.exception.UserProviderException;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
@@ -39,7 +40,7 @@ class CreateUserUseCaseTest {
         when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.just(USER));
 
         StepVerifier.create(createUserUseCase.execute(USER_ID))
-                .expectNext(USER)
+                .expectNext(new UserCreation(USER, false))
                 .verifyComplete();
 
         verify(userProviderPort, never()).findById(any());
@@ -53,7 +54,7 @@ class CreateUserUseCaseTest {
         when(userRepositoryPort.save(USER)).thenReturn(Mono.just(USER));
 
         StepVerifier.create(createUserUseCase.execute(USER_ID))
-                .expectNext(USER)
+                .expectNext(new UserCreation(USER, true))
                 .verifyComplete();
 
         verify(userRepositoryPort).save(USER);
