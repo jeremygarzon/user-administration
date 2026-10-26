@@ -6,6 +6,7 @@ import co.com.onboarding.users.model.UserCreation;
 import co.com.onboarding.users.model.exception.UserNotFoundException;
 import co.com.onboarding.users.model.exception.UserProviderException;
 import co.com.onboarding.users.usecase.CreateUserUseCase;
+import co.com.onboarding.users.usecase.FindUsersUseCase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webflux.test.autoconfigure.WebFluxTest;
@@ -13,7 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -24,7 +28,8 @@ import static org.mockito.Mockito.when;
 @WebFluxTest
 class RouterRestTest {
 
-    private static final String USER_PATH = "/api/v1/users/{id}";
+    private static final String USERS_PATH = "/api/v1/users";
+    private static final String USER_PATH = USERS_PATH + "/{id}";
     private static final User USER = new User(
             1L, "george.bluth@reqres.in", "George", "Bluth", "https://reqres.in/img/faces/1-image.jpg");
 
@@ -33,6 +38,9 @@ class RouterRestTest {
 
     @MockitoBean
     private CreateUserUseCase createUserUseCase;
+
+    @MockitoBean
+    private FindUsersUseCase findUsersUseCase;
 
     @Test
     void createUserReturnsCreatedWithLocationWhenUserIsNew() {
@@ -121,6 +129,91 @@ class RouterRestTest {
                 .expectStatus().is5xxServerError()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo(500)
+                .jsonPath("$.detail").isEqualTo("Unexpected error processing the request");
+    }
+
+    @Test
+    void getUserReturnsStoredUser() {
+        when(findUsersUseCase.findById(1L)).thenReturn(Mono.just(USER));
+
+        webTestClient.get()
+                .uri(USER_PATH, 1)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(User.class).isEqualTo(USER);
+    }
+
+    @Test
+    void getUserReturnsNotFoundMessageWhenUserDoesNotExist() {
+        when(findUsersUseCase.findById(99L)).thenReturn(Mono.error(new UserNotFoundException(99L)));
+
+        webTestClient.get()
+                .uri(USER_PATH, 99)
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectBody()
+                .jsonPath("$.detail").isEqualTo("User with id 99 does not exist");
+    }
+
+    @Test
+    void listUsersReturnsAllUsersWhenNoFilterIsGiven() {
+        when(findUsersUseCase.findAll()).thenReturn(Flux.just(USER));
+
+        webTestClient.get()
+                .uri(USERS_PATH)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(User.class).isEqualTo(List.of(USER));
+
+        verify(findUsersUseCase, never()).findByName(any());
+    }
+
+    @Test
+    void listUsersFiltersByName() {
+        when(findUsersUseCase.findByName("geo")).thenReturn(Flux.just(USER));
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path(USERS_PATH).queryParam("name", "geo").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBodyList(User.class).isEqualTo(List.of(USER));
+
+        verify(findUsersUseCase, never()).findAll();
+    }
+
+    @Test
+    void listUsersReturnsEmptyArrayWhenNothingMatches() {
+        when(findUsersUseCase.findByName("nobody")).thenReturn(Flux.empty());
+
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path(USERS_PATH).queryParam("name", "nobody").build())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().json("[]");
+    }
+
+    @Test
+    void listUsersReturnsBadRequestForBlankName() {
+        webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path(USERS_PATH).queryParam("name", " ").build())
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.detail").isEqualTo("Query parameter 'name' must not be blank");
+
+        verify(findUsersUseCase, never()).findByName(any());
+    }
+
+    @Test
+    void listUsersReturnsProblemDetailWhenDatabaseFails() {
+        when(findUsersUseCase.findAll()).thenReturn(Flux.error(new IllegalStateException("db down")));
+
+        webTestClient.get()
+                .uri(USERS_PATH)
+                .exchange()
+                .expectStatus().is5xxServerError()
+                .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
                 .jsonPath("$.detail").isEqualTo("Unexpected error processing the request");
     }
 }
