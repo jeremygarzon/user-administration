@@ -11,6 +11,12 @@ spring:
       path: "/h2"
   profiles:
     include: null
+  data:
+    redis:
+      host: "${REDIS_HOST:localhost}"
+      port: "${REDIS_PORT:6379}"
+      timeout: "500ms"
+      connect-timeout: "500ms"
 management:
   endpoints:
     web:
@@ -29,15 +35,17 @@ adapter:
   restconsumer:
     timeout: 5000
     url: "https://reqres.in"
-    api-key: ${REQRES_API_KEY}
+    api-key: "${REQRES_API_KEY}"
 adapters:
   r2dbc:
-    host: ${DB_HOST:localhost}
-    port: ${DB_PORT:5432}
-    database: ${DB_NAME:user_administration}
-    schema: ${DB_SCHEMA:public}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    host: "${DB_HOST:localhost}"
+    port: "${DB_PORT:5432}"
+    database: "${DB_NAME:user_administration}"
+    schema: "${DB_SCHEMA:public}"
+    username: "${DB_USER:postgres}"
+    password: "${DB_PASSWORD:postgres}"
+  redis:
+    user-ttl: "${USER_CACHE_TTL:10m}"
 resilience4j:
   circuitbreaker:
     instances:
@@ -45,8 +53,8 @@ resilience4j:
         registerHealthIndicator: true
         failureRateThreshold: 50
         slowCallRateThreshold: 50
-        slowCallDurationThreshold: 2s
+        slowCallDurationThreshold: "2s"
         permittedNumberOfCallsInHalfOpenState: 3
         slidingWindowSize: 10
         minimumNumberOfCalls: 10
-        waitDurationInOpenState: 10s
+        waitDurationInOpenState: "10s"
