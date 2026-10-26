@@ -4,9 +4,21 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-micrometer-tracing-brave'
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'
 
+	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
+	testImplementation 'com.squareup.okhttp3:mockwebserver:5.5.0'
+	testImplementation 'software.amazon.awssdk:sqs'
+	testImplementation 'software.amazon.awssdk:dynamodb'
+
 	// Native DNS resolver used by Netty on macOS; avoids the fallback error at startup on local runs.
 	if (System.getProperty('os.name').startsWith('Mac')) {
 		def arch = System.getProperty('os.arch') == 'aarch64' ? 'osx-aarch_64' : 'osx-x86_64'
 		runtimeOnly "io.netty:netty-resolver-dns-native-macos::${arch}"
 	}
+}
+
+// The integration test starts containers; mutation testing would run it once per mutant.
+pitest {
+	excludedTestClasses = ['*IntegrationTest']
 }
