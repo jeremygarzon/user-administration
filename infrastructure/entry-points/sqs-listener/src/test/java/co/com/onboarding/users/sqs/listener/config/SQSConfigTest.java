@@ -52,6 +52,12 @@ class SQSConfigTest {
     }
 
     @Test
+    void resolveEndpointIsNullWhenBlank() {
+        when(sqsProperties.endpoint()).thenReturn("");
+        assertThat(sqsConfig.resolveEndpoint(sqsProperties)).isNull();
+    }
+
+    @Test
     void resolveEndpointIsNull() {
         assertThat(sqsConfig.resolveEndpoint(sqsProperties)).isNull();
     }
