@@ -36,6 +36,10 @@ adapter:
     timeout: 5000
     url: "https://reqres.in"
     api-key: "${REQRES_API_KEY}"
+  sqs:
+    region: "${AWS_REGION:us-east-1}"
+    queueUrl: "${USER_EVENTS_QUEUE_URL:http://localhost:4566/000000000000/user-created-events}"
+    endpoint: "${AWS_ENDPOINT:http://localhost:4566}"
 adapters:
   r2dbc:
     host: "${DB_HOST:localhost}"
@@ -58,3 +62,17 @@ resilience4j:
         slidingWindowSize: 10
         minimumNumberOfCalls: 10
         waitDurationInOpenState: "10s"
+entrypoint:
+  sqs:
+    region: "${AWS_REGION:us-east-1}"
+    endpoint: "${AWS_ENDPOINT:http://localhost:4566}"
+    queueUrl: "${USER_EVENTS_QUEUE_URL:http://localhost:4566/000000000000/user-created-events}"
+    waitTimeSeconds: 20
+    maxNumberOfMessages: 10
+    visibilityTimeoutSeconds: 10
+    numberOfThreads: 1
+aws:
+  region: "${AWS_REGION:us-east-1}"
+  dynamodb:
+    endpoint: "${AWS_ENDPOINT:http://localhost:4566}"
+    users-table: "${DYNAMODB_USERS_TABLE:users}"
