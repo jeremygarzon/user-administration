@@ -23,6 +23,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.after;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -111,5 +114,23 @@ class SQSListenerTest {
                 .start();
 
         verify(asyncClient, timeout(5000).atLeast(2)).receiveMessage(any(ReceiveMessageRequest.class));
+    }
+
+    @Test
+    void stopCancelsPolling() {
+        when(asyncClient.receiveMessage(any(ReceiveMessageRequest.class)))
+                .thenReturn(CompletableFuture.completedFuture(ReceiveMessageResponse.builder().build()));
+        var sqsListener = SQSListener.builder()
+                .client(asyncClient)
+                .properties(sqsProperties)
+                .processor(message -> Mono.empty())
+                .build()
+                .start();
+        verify(asyncClient, timeout(2000).atLeastOnce()).receiveMessage(any(ReceiveMessageRequest.class));
+
+        sqsListener.stop();
+        clearInvocations(asyncClient);
+
+        verify(asyncClient, after(500).never()).receiveMessage(any(ReceiveMessageRequest.class));
     }
 }
