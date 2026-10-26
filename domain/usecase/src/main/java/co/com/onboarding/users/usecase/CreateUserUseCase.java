@@ -3,6 +3,7 @@ package co.com.onboarding.users.usecase;
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
 import co.com.onboarding.users.model.exception.UserNotFoundException;
+import co.com.onboarding.users.model.gateways.UserEventPublisherPort;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ public class CreateUserUseCase {
 
     private final UserRepositoryPort userRepositoryPort;
     private final UserProviderPort userProviderPort;
+    private final UserEventPublisherPort userEventPublisherPort;
 
     public Mono<UserCreation> execute(Long id) {
         return userRepositoryPort.findById(id)
@@ -24,6 +26,11 @@ public class CreateUserUseCase {
     private Mono<User> createFromProvider(Long id) {
         return userProviderPort.findById(id)
                 .switchIfEmpty(Mono.error(() -> new UserNotFoundException(id)))
-                .flatMap(userRepositoryPort::save);
+                .flatMap(userRepositoryPort::save)
+                .doOnNext(this::publishCreatedEvent);
+    }
+
+    private void publishCreatedEvent(User user) {
+        userEventPublisherPort.publishUserCreated(user).subscribe();
     }
 }
