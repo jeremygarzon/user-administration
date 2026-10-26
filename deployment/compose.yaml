@@ -24,3 +24,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  ministack:
+    image: docker.io/ministackorg/ministack:latest
+    ports:
+      - "4566:4566"

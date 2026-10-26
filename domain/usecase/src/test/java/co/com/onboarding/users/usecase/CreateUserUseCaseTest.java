@@ -4,6 +4,7 @@ import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
 import co.com.onboarding.users.model.exception.UserNotFoundException;
 import co.com.onboarding.users.model.exception.UserProviderException;
+import co.com.onboarding.users.model.gateways.UserEventPublisherPort;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import java.time.Duration;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -32,6 +35,9 @@ class CreateUserUseCaseTest {
     @Mock
     private UserProviderPort userProviderPort;
 
+    @Mock
+    private UserEventPublisherPort userEventPublisherPort;
+
     @InjectMocks
     private CreateUserUseCase createUserUseCase;
 
@@ -45,6 +51,7 @@ class CreateUserUseCaseTest {
 
         verify(userProviderPort, never()).findById(any());
         verify(userRepositoryPort, never()).save(any());
+        verify(userEventPublisherPort, never()).publishUserCreated(any());
     }
 
     @Test
@@ -52,12 +59,27 @@ class CreateUserUseCaseTest {
         when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
         when(userProviderPort.findById(USER_ID)).thenReturn(Mono.just(USER));
         when(userRepositoryPort.save(USER)).thenReturn(Mono.just(USER));
+        when(userEventPublisherPort.publishUserCreated(USER)).thenReturn(Mono.empty());
 
         StepVerifier.create(createUserUseCase.execute(USER_ID))
                 .expectNext(new UserCreation(USER, true))
                 .verifyComplete();
 
         verify(userRepositoryPort).save(USER);
+        verify(userEventPublisherPort).publishUserCreated(USER);
+    }
+
+    @Test
+    void returnsCreatedUserWithoutWaitingForTheEvent() {
+        when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
+        when(userProviderPort.findById(USER_ID)).thenReturn(Mono.just(USER));
+        when(userRepositoryPort.save(USER)).thenReturn(Mono.just(USER));
+        when(userEventPublisherPort.publishUserCreated(USER)).thenReturn(Mono.never());
+
+        StepVerifier.create(createUserUseCase.execute(USER_ID))
+                .expectNext(new UserCreation(USER, true))
+                .expectComplete()
+                .verify(Duration.ofSeconds(1));
     }
 
     @Test
@@ -70,6 +92,7 @@ class CreateUserUseCaseTest {
                 .verify();
 
         verify(userRepositoryPort, never()).save(any());
+        verify(userEventPublisherPort, never()).publishUserCreated(any());
     }
 
     @Test
@@ -95,5 +118,7 @@ class CreateUserUseCaseTest {
         StepVerifier.create(createUserUseCase.execute(USER_ID))
                 .expectErrorMatches(error -> error == persistenceError)
                 .verify();
+
+        verify(userEventPublisherPort, never()).publishUserCreated(any());
     }
 }

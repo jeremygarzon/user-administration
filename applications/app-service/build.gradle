@@ -1,4 +1,5 @@
 
 dependencies {
+	implementation 'software.amazon.awssdk:sts'
 	implementation 'org.reactivecommons.utils:object-mapper:0.1.0'
 }
