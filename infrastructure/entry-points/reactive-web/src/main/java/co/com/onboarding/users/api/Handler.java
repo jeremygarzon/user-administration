@@ -1,7 +1,12 @@
 package co.com.onboarding.users.api;
 
+import co.com.onboarding.users.api.request.CreateUserRequest;
+import co.com.onboarding.users.api.request.UserIdRequest;
+import co.com.onboarding.users.api.request.UserSearchRequest;
+import co.com.onboarding.users.api.validation.RequestValidator;
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
+import co.com.onboarding.users.model.exception.BusinessException;
 import co.com.onboarding.users.usecase.CreateUserUseCase;
 import co.com.onboarding.users.usecase.FindUsersUseCase;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +17,7 @@ import org.springframework.web.server.ServerWebInputException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.Optional;
+import static co.com.onboarding.users.model.exception.BusinessErrorMessage.INVALID_REQUEST_BODY;
 
 @Component
 @RequiredArgsConstructor
@@ -20,9 +25,14 @@ public class Handler {
 
     private final CreateUserUseCase createUserUseCase;
     private final FindUsersUseCase findUsersUseCase;
+    private final RequestValidator requestValidator;
 
     public Mono<ServerResponse> createUser(ServerRequest request) {
-        return userId(request)
+        return request.bodyToMono(CreateUserRequest.class)
+                .onErrorMap(ServerWebInputException.class, e -> new BusinessException(INVALID_REQUEST_BODY))
+                .switchIfEmpty(Mono.error(() -> new BusinessException(INVALID_REQUEST_BODY)))
+                .flatMap(requestValidator::validate)
+                .map(CreateUserRequest::id)
                 .flatMap(createUserUseCase::execute)
                 .flatMap(creation -> toResponse(request, creation));
     }
@@ -34,28 +44,27 @@ public class Handler {
     }
 
     public Mono<ServerResponse> listUsers(ServerRequest request) {
-        Optional<String> name = request.queryParam("name");
-        if (name.isPresent() && name.get().isBlank()) {
-            return Mono.error(new ServerWebInputException("Query parameter 'name' must not be blank"));
-        }
-        Flux<User> users = name
-                .map(findUsersUseCase::findByName)
-                .orElseGet(findUsersUseCase::findAll);
-        return users.collectList()
-                .flatMap(list -> ServerResponse.ok().bodyValue(list));
+        return requestValidator.validate(UserSearchRequest.from(request))
+                .flatMapMany(this::findUsers)
+                .collectList()
+                .flatMap(users -> ServerResponse.ok().bodyValue(users));
+    }
+
+    private Flux<User> findUsers(UserSearchRequest search) {
+        return search.hasName()
+                ? findUsersUseCase.findByName(search.name())
+                : findUsersUseCase.findAll();
+    }
+
+    private Mono<Long> userId(ServerRequest request) {
+        return requestValidator.validate(UserIdRequest.from(request))
+                .map(UserIdRequest::id);
     }
 
     private static Mono<ServerResponse> toResponse(ServerRequest request, UserCreation creation) {
         ServerResponse.BodyBuilder response = creation.created()
-                ? ServerResponse.created(request.uri())
+                ? ServerResponse.created(request.uriBuilder().path("/{id}").build(creation.user().id()))
                 : ServerResponse.ok();
         return response.bodyValue(creation.user());
-    }
-
-    private static Mono<Long> userId(ServerRequest request) {
-        return Mono.fromCallable(() -> Long.parseLong(request.pathVariable("id")))
-                .filter(id -> id > 0)
-                .onErrorResume(NumberFormatException.class, e -> Mono.empty())
-                .switchIfEmpty(Mono.error(() -> new ServerWebInputException("User id must be a positive number")));
     }
 }

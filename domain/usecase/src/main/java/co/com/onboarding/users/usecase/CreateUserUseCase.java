@@ -2,12 +2,14 @@ package co.com.onboarding.users.usecase;
 
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
-import co.com.onboarding.users.model.exception.UserNotFoundException;
+import co.com.onboarding.users.model.exception.BusinessException;
 import co.com.onboarding.users.model.gateways.UserEventPublisherPort;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
+
+import static co.com.onboarding.users.model.exception.BusinessErrorMessage.USER_NOT_FOUND;
 
 @RequiredArgsConstructor
 public class CreateUserUseCase {
@@ -25,17 +27,8 @@ public class CreateUserUseCase {
 
     private Mono<User> createFromProvider(Long id) {
         return userProviderPort.findById(id)
-                .switchIfEmpty(Mono.error(() -> new UserNotFoundException(id)))
+                .switchIfEmpty(Mono.error(() -> new BusinessException(USER_NOT_FOUND)))
                 .flatMap(userRepositoryPort::save)
-                .flatMap(this::publishCreatedEvent);
-    }
-
-    private Mono<User> publishCreatedEvent(User user) {
-        return Mono.deferContextual(context -> {
-            userEventPublisherPort.publishUserCreated(user)
-                    .contextWrite(context)
-                    .subscribe();
-            return Mono.just(user);
-        });
+                .flatMap(user -> userEventPublisherPort.publishUserCreated(user).thenReturn(user));
     }
 }

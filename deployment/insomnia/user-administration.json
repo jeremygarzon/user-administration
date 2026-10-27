@@ -1,0 +1,290 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-10-27T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_user_administration",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "User Administration",
+      "description": "API de administración de usuarios",
+      "scope": "collection"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_user_administration",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8080"
+      }
+    },
+    {
+      "_id": "fld_create",
+      "_type": "request_group",
+      "parentId": "wrk_user_administration",
+      "name": "1. Importar usuario",
+      "metaSortKey": -300
+    },
+    {
+      "_id": "fld_query",
+      "_type": "request_group",
+      "parentId": "wrk_user_administration",
+      "name": "2. Consultar usuarios",
+      "metaSortKey": -200
+    },
+    {
+      "_id": "fld_actuator",
+      "_type": "request_group",
+      "parentId": "wrk_user_administration",
+      "name": "3. Actuator",
+      "metaSortKey": -100
+    },
+    {
+      "_id": "req_01",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "Crear usuario nuevo → 201",
+      "description": "Importa el usuario 7 desde ReqRes. La primera vez responde 201 con Location.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"id\": 7\n}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_02",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "Usuario ya existente → 200",
+      "description": "Ejecútalo después del anterior: responde 200 sin volver a llamar a ReqRes ni publicar otro evento.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"id\": 7\n}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_03",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "No existe en ReqRes → 404",
+      "description": "ReqRes solo tiene ids del 1 al 12. Responde USER_NOT_FOUND.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"id\": 23\n}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_04",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "Id no positivo → 400",
+      "description": "Responde INVALID_USER_ID.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"id\": 0\n}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 4
+    },
+    {
+      "_id": "req_05",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "Sin id → 400",
+      "description": "Responde INVALID_USER_ID.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 5
+    },
+    {
+      "_id": "req_06",
+      "_type": "request",
+      "parentId": "fld_create",
+      "name": "Body mal formado → 400",
+      "description": "Responde INVALID_REQUEST_BODY.",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"id\": \"abc\"\n}"
+      },
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 6
+    },
+    {
+      "_id": "req_07",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Consultar por id → 200",
+      "description": "La segunda consulta sale de Redis.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users/7",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 7
+    },
+    {
+      "_id": "req_08",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Id inexistente → 404",
+      "description": "Responde USER_NOT_FOUND.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users/99",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 8
+    },
+    {
+      "_id": "req_09",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Id inválido → 400",
+      "description": "Responde INVALID_USER_ID.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users/abc",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 9
+    },
+    {
+      "_id": "req_10",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Listar todos → 200",
+      "description": "",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 10
+    },
+    {
+      "_id": "req_11",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Buscar por nombre → 200",
+      "description": "Busca por nombre sin distinguir mayúsculas.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users?name=mich",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 11
+    },
+    {
+      "_id": "req_12",
+      "_type": "request",
+      "parentId": "fld_query",
+      "name": "Nombre en blanco → 400",
+      "description": "Responde BLANK_NAME_FILTER.",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/users?name=%20",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 12
+    },
+    {
+      "_id": "req_13",
+      "_type": "request",
+      "parentId": "fld_actuator",
+      "name": "Health",
+      "description": "",
+      "method": "GET",
+      "url": "{{ _.base_url }}/actuator/health",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 13
+    },
+    {
+      "_id": "req_14",
+      "_type": "request",
+      "parentId": "fld_actuator",
+      "name": "Prometheus",
+      "description": "",
+      "method": "GET",
+      "url": "{{ _.base_url }}/actuator/prometheus",
+      "headers": [],
+      "body": {},
+      "parameters": [],
+      "authentication": {},
+      "metaSortKey": 14
+    }
+  ]
+}

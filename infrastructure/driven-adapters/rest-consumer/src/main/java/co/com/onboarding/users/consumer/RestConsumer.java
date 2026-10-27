@@ -2,7 +2,7 @@
 package co.com.onboarding.users.consumer;
 
 import co.com.onboarding.users.model.User;
-import co.com.onboarding.users.model.exception.UserProviderException;
+import co.com.onboarding.users.model.exception.TechnicalException;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -12,10 +12,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
 
+import static co.com.onboarding.users.model.exception.TechnicalErrorMessage.USER_PROVIDER_UNAVAILABLE;
+
 @Service
 public class RestConsumer implements UserProviderPort {
 
     private static final String CIRCUIT_BREAKER_NAME = "reqres";
+    private static final String USER_PATH = "/api/users/{id}";
 
     private final WebClient client;
     private final CircuitBreaker circuitBreaker;
@@ -29,19 +32,13 @@ public class RestConsumer implements UserProviderPort {
     public Mono<User> findById(Long id) {
         return client
                 .get()
-                .uri("/api/users/{id}", id)
+                .uri(USER_PATH, id)
                 .retrieve()
                 .bodyToMono(ReqResUserResponse.class)
                 .map(ReqResUserResponse::data)
-                .map(data -> new User(
-                        data.id(),
-                        data.email(),
-                        data.firstName(),
-                        data.lastName(),
-                        data.avatar()
-                ))
+                .map(data -> new User(data.id(), data.email(), data.firstName(), data.lastName(), data.avatar()))
                 .onErrorResume(WebClientResponseException.NotFound.class, e -> Mono.empty())
                 .transformDeferred(CircuitBreakerOperator.of(circuitBreaker))
-                .onErrorMap(e -> new UserProviderException("Could not fetch user " + id + " from provider", e));
+                .onErrorMap(e -> new TechnicalException(USER_PROVIDER_UNAVAILABLE, e));
     }
 }

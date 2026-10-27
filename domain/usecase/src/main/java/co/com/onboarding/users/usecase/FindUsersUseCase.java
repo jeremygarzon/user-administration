@@ -1,12 +1,14 @@
 package co.com.onboarding.users.usecase;
 
 import co.com.onboarding.users.model.User;
-import co.com.onboarding.users.model.exception.UserNotFoundException;
+import co.com.onboarding.users.model.exception.BusinessException;
 import co.com.onboarding.users.model.gateways.UserCachePort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+
+import static co.com.onboarding.users.model.exception.BusinessErrorMessage.USER_NOT_FOUND;
 
 @RequiredArgsConstructor
 public class FindUsersUseCase {
@@ -29,7 +31,7 @@ public class FindUsersUseCase {
 
     private Mono<User> findInRepositoryAndCache(Long id) {
         return userRepositoryPort.findById(id)
-                .switchIfEmpty(Mono.error(() -> new UserNotFoundException(id)))
+                .switchIfEmpty(Mono.error(() -> new BusinessException(USER_NOT_FOUND)))
                 .flatMap(user -> userCachePort.save(user).thenReturn(user));
     }
 }

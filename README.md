@@ -8,7 +8,8 @@ Servicio reactivo para administrar usuarios. Importa usuarios desde [ReqRes](htt
 - Consulta por id, listado completo y búsqueda por nombre.
 - Caché de consultas por id en Redis, con expiración configurable.
 - Publicación de eventos en SQS y consumo con reintentos y cola de mensajes fallidos (DLQ).
-- Errores en formato estándar `application/problem+json`.
+- Errores en formato estándar `application/problem+json`, con un `code` estable por cada error.
+- Logs en JSON con campos estructurados y datos personales enmascarados.
 - Trazas distribuidas, health checks y métricas Prometheus.
 
 ## Tecnologías
@@ -118,15 +119,17 @@ podman run --rm -p 8080:8080 \
 
 | Método | Ruta | Descripción | Respuestas |
 |---|---|---|---|
-| `PUT` | `/api/v1/users/{id}` | Importa el usuario desde ReqRes | `201` creado · `200` ya existía · `400` · `404` · `502` |
+| `POST` | `/api/v1/users` | Importa desde ReqRes el usuario indicado en el body (`{"id": 7}`) | `201` creado · `200` ya existía · `400` · `404` · `502` |
 | `GET` | `/api/v1/users/{id}` | Consulta un usuario | `200` · `400` · `404` |
 | `GET` | `/api/v1/users` | Lista todos los usuarios | `200` |
 | `GET` | `/api/v1/users?name={texto}` | Busca por nombre (sin distinguir mayúsculas) | `200` · `400` |
 
 ### Ejemplos
 
+La colección `deployment/insomnia/user-administration.json` trae todos los casos, incluidos los de error. Se importa en Insomnia desde *Import → From File* y se puede cambiar `base_url` en el entorno.
+
 ```bash
-curl -i -X PUT localhost:8080/api/v1/users/7
+curl -i -X POST localhost:8080/api/v1/users -H 'Content-Type: application/json' -d '{"id": 7}'
 ```
 
 ```http
@@ -150,14 +153,22 @@ curl -s localhost:8080/api/v1/users/99
 ```
 
 ```json
-{"detail":"User with id 99 does not exist","instance":"/api/v1/users/99","status":404,"title":"Not Found"}
+{"code":"USER_NOT_FOUND","detail":"User does not exist","instance":"/api/v1/users/99","status":404,"title":"Not Found"}
 ```
+
+| `code` | Tipo | Estado |
+|---|---|---|
+| `INVALID_USER_ID` · `INVALID_REQUEST_BODY` · `BLANK_NAME_FILTER` | Negocio | `400` |
+| `USER_NOT_FOUND` | Negocio | `404` |
+| `USER_PROVIDER_UNAVAILABLE` | Técnico | `502` |
+| `UNEXPECTED_ERROR` | Técnico | `500` |
 
 ### Observabilidad
 
 - `GET /actuator/health`: estado de la aplicación, PostgreSQL, Redis y el circuit breaker de ReqRes.
 - `GET /actuator/prometheus`: métricas.
-- Cada línea de log incluye `traceId` y `spanId`, y la traza se propaga a los servicios externos con el header `traceparent`.
+- Cada línea de log es un JSON que incluye `traceId` y `spanId`, y la traza se propaga a los servicios externos con el header `traceparent`.
+- Los datos de contexto se registran como campos con `kv()` (`userId`, `messageId`, `status`…). `logback-spring.xml` enmascara los campos `email`, `firstName`, `lastName`, `password` y `apiKey`, y cualquier email que aparezca dentro de un mensaje.
 
 ## Verificación local
 
@@ -179,7 +190,7 @@ podman exec deployment_redis_1 redis-cli TTL user:7
 **Eventos.** Cada usuario creado aparece en DynamoDB con sus datos en mayúsculas:
 
 ```bash
-curl -s -X PUT localhost:8080/api/v1/users/8 > /dev/null
+curl -s -X POST localhost:8080/api/v1/users -H 'Content-Type: application/json' -d '{"id": 8}' > /dev/null
 awsl dynamodb get-item --table-name users --key '{"id":{"N":"8"}}'
 ```
 
@@ -221,5 +232,5 @@ Los reportes se generan en `<módulo>/build/reports/` (`tests`, `jacocoHtml` y `
 | El puerto `4566` ya está en uso | Ya hay otro emulador de AWS corriendo. Úsalo y levanta solo `podman compose -f deployment/compose.yaml up -d postgres redis` |
 | `Error polling sqs queue` en el log | La cola no existe o el emulador no está activo. Ejecuta `./deployment/aws/init-resources.sh` |
 | `Unable to load credentials` en el log | Define `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` |
-| `PUT` responde `502` | ReqRes no está disponible o rechazó la API key configurada |
+| `POST` responde `502` | ReqRes no está disponible o rechazó la API key configurada |
 | Gradle no reconoce un módulo nuevo | Borra `.gradle/configuration-cache` y vuelve a compilar |

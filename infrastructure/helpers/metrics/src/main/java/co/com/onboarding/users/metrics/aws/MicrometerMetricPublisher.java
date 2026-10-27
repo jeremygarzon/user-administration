@@ -11,7 +11,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -23,27 +22,25 @@ public class MicrometerMetricPublisher implements MetricPublisher {
     public void publish(MetricCollection metricCollection) {
         service.submit(() -> {
             List<Tag> tags = buildTags(metricCollection);
-            metricCollection.stream()
-                    .filter(record -> record.value() instanceof Duration || record.value() instanceof Integer)
-                    .forEach(record -> {
-                        if (record.value() instanceof Duration) {
-                            registry.timer(record.metric().name(), tags).record((Duration) record.value());
-                        } else if (record.value() instanceof Integer) {
-                            registry.counter(record.metric().name(), tags).increment((Integer) record.value());
-                        }
-                    });
+            metricCollection.stream().forEach(record -> {
+                if (record.value() instanceof Duration duration) {
+                    registry.timer(record.metric().name(), tags).record(duration);
+                } else if (record.value() instanceof Integer count) {
+                    registry.counter(record.metric().name(), tags).increment(count);
+                }
+            });
         });
     }
 
     @Override
     public void close() {
-
+        service.shutdown();
     }
 
     private List<Tag> buildTags(MetricCollection metricCollection) {
         return metricCollection.stream()
                 .filter(record -> record.value() instanceof String || record.value() instanceof Boolean)
                 .map(record -> Tag.of(record.metric().name(), record.value().toString()))
-                .collect(Collectors.toList());
+                .toList();
     }
 }

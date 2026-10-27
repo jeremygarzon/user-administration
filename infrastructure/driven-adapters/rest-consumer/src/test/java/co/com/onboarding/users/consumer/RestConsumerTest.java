@@ -1,7 +1,7 @@
 package co.com.onboarding.users.consumer;
 
 import co.com.onboarding.users.model.User;
-import co.com.onboarding.users.model.exception.UserProviderException;
+import co.com.onboarding.users.model.exception.TechnicalException;
 import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import okhttp3.mockwebserver.MockResponse;
@@ -93,13 +93,13 @@ class RestConsumerTest {
     }
 
     @Test
-    @DisplayName("findById wraps provider failures in UserProviderException keeping the cause.")
+    @DisplayName("findById wraps provider failures in TechnicalException keeping the cause.")
     void findByIdWrapsServerErrors() {
         enqueueResponse(HttpStatus.INTERNAL_SERVER_ERROR, "{}");
 
         StepVerifier.create(restConsumer.findById(1L))
                 .expectErrorSatisfies(error -> assertThat(error)
-                        .isInstanceOf(UserProviderException.class)
+                        .isInstanceOf(TechnicalException.class)
                         .hasCauseInstanceOf(WebClientResponseException.InternalServerError.class))
                 .verify();
     }
@@ -112,7 +112,7 @@ class RestConsumerTest {
 
         StepVerifier.create(restConsumer.findById(1L))
                 .expectErrorSatisfies(error -> assertThat(error)
-                        .isInstanceOf(UserProviderException.class)
+                        .isInstanceOf(TechnicalException.class)
                         .hasCauseInstanceOf(CallNotPermittedException.class))
                 .verify();
 

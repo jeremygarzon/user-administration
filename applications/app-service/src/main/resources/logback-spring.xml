@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty name="APP_NAME" source="spring.application.name"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <customFields>{"app":"${APP_NAME}"}</customFields>
+            <!-- Personal data and secrets never reach the logs, whether logged as kv() fields or inside a message -->
+            <decorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <defaultMask>****</defaultMask>
+                <path>email</path>
+                <path>firstName</path>
+                <path>lastName</path>
+                <path>password</path>
+                <path>apiKey</path>
+                <value>[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}</value>
+            </decorator>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
