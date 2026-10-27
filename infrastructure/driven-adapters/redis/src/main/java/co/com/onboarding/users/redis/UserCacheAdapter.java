@@ -14,11 +14,15 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Slf4j
 @Component
 public class UserCacheAdapter implements UserCachePort {
 
     private static final String KEY_PREFIX = "user:";
+    private static final String CACHE_READ_FAILED = "Cache lookup failed, falling back to database";
+    private static final String CACHE_WRITE_FAILED = "Could not cache user";
 
     private final ReactiveRedisTemplate<String, User> template;
     private final Duration ttl;
@@ -38,7 +42,7 @@ public class UserCacheAdapter implements UserCachePort {
     public Mono<User> findById(Long id) {
         return template.opsForValue().get(KEY_PREFIX + id)
                 .onErrorResume(error -> {
-                    log.warn("Cache lookup failed for user {}, falling back to database: {}", id, error.toString());
+                    log.warn(CACHE_READ_FAILED, kv("userId", id), kv("error", error.toString()));
                     return Mono.empty();
                 });
     }
@@ -48,7 +52,7 @@ public class UserCacheAdapter implements UserCachePort {
         return template.opsForValue().set(KEY_PREFIX + user.id(), user, ttl)
                 .then()
                 .onErrorResume(error -> {
-                    log.warn("Could not cache user {}: {}", user.id(), error.toString());
+                    log.warn(CACHE_WRITE_FAILED, kv("userId", user.id()), kv("error", error.toString()));
                     return Mono.empty();
                 });
     }

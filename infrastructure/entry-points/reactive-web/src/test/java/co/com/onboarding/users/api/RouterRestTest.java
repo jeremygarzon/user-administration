@@ -1,10 +1,11 @@
 package co.com.onboarding.users.api;
 
-import co.com.onboarding.users.api.error.ApiErrorHandler;
+import co.com.onboarding.users.api.error.GlobalExceptionHandler;
+import co.com.onboarding.users.api.validation.RequestValidator;
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
-import co.com.onboarding.users.model.exception.UserNotFoundException;
-import co.com.onboarding.users.model.exception.UserProviderException;
+import co.com.onboarding.users.model.exception.BusinessException;
+import co.com.onboarding.users.model.exception.TechnicalException;
 import co.com.onboarding.users.usecase.CreateUserUseCase;
 import co.com.onboarding.users.usecase.FindUsersUseCase;
 import org.junit.jupiter.api.Test;
@@ -19,12 +20,14 @@ import reactor.core.publisher.Mono;
 
 import java.util.List;
 
+import static co.com.onboarding.users.model.exception.BusinessErrorMessage.USER_NOT_FOUND;
+import static co.com.onboarding.users.model.exception.TechnicalErrorMessage.USER_PROVIDER_UNAVAILABLE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@ContextConfiguration(classes = {RouterRest.class, Handler.class, ApiErrorHandler.class})
+@ContextConfiguration(classes = {RouterRest.class, Handler.class, GlobalExceptionHandler.class, RequestValidator.class})
 @WebFluxTest
 class RouterRestTest {
 
@@ -46,9 +49,7 @@ class RouterRestTest {
     void createUserReturnsCreatedWithLocationWhenUserIsNew() {
         when(createUserUseCase.execute(1L)).thenReturn(Mono.just(new UserCreation(USER, true)));
 
-        webTestClient.put()
-                .uri(USER_PATH, 1)
-                .exchange()
+        createUser("{\"id\":1}")
                 .expectStatus().isCreated()
                 .expectHeader().location("/api/v1/users/1")
                 .expectBody(User.class).isEqualTo(USER);
@@ -58,63 +59,93 @@ class RouterRestTest {
     void createUserReturnsOkWhenUserAlreadyExists() {
         when(createUserUseCase.execute(1L)).thenReturn(Mono.just(new UserCreation(USER, false)));
 
-        webTestClient.put()
-                .uri(USER_PATH, 1)
-                .exchange()
+        createUser("{\"id\":1}")
                 .expectStatus().isOk()
                 .expectHeader().doesNotExist("Location")
                 .expectBody(User.class).isEqualTo(USER);
     }
 
     @Test
-    void createUserReturnsBadRequestForNonNumericId() {
-        webTestClient.put()
-                .uri(USER_PATH, "abc")
-                .exchange()
+    void createUserReturnsBadRequestForNonPositiveId() {
+        createUser("{\"id\":0}")
                 .expectStatus().isBadRequest()
                 .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody()
                 .jsonPath("$.status").isEqualTo(400)
+                .jsonPath("$.code").isEqualTo("INVALID_USER_ID")
                 .jsonPath("$.detail").isEqualTo("User id must be a positive number")
-                .jsonPath("$.instance").isEqualTo("/api/v1/users/abc");
+                .jsonPath("$.instance").isEqualTo("/api/v1/users");
 
         verify(createUserUseCase, never()).execute(any());
     }
 
     @Test
-    void createUserReturnsBadRequestForNonPositiveId() {
-        webTestClient.put()
-                .uri(USER_PATH, 0)
-                .exchange()
-                .expectStatus().isBadRequest();
+    void createUserReturnsBadRequestWhenIdIsMissing() {
+        createUser("{}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_USER_ID");
 
         verify(createUserUseCase, never()).execute(any());
+    }
+
+    @Test
+    void createUserReturnsBadRequestForMalformedBody() {
+        createUser("{\"id\":\"abc\"}")
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST_BODY");
+
+        verify(createUserUseCase, never()).execute(any());
+    }
+
+    @Test
+    void createUserReturnsBadRequestWithoutBody() {
+        webTestClient.post()
+                .uri(USERS_PATH)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_REQUEST_BODY");
+
+        verify(createUserUseCase, never()).execute(any());
+    }
+
+    @Test
+    void getUserReturnsBadRequestForNegativeId() {
+        webTestClient.get()
+                .uri(USER_PATH, -5)
+                .exchange()
+                .expectStatus().isBadRequest()
+                .expectBody()
+                .jsonPath("$.code").isEqualTo("INVALID_USER_ID");
+
+        verify(findUsersUseCase, never()).findById(any());
     }
 
     @Test
     void createUserReturnsNotFoundWhenProviderHasNoUser() {
-        when(createUserUseCase.execute(23L)).thenReturn(Mono.error(new UserNotFoundException(23L)));
+        when(createUserUseCase.execute(23L)).thenReturn(Mono.error(new BusinessException(USER_NOT_FOUND)));
 
-        webTestClient.put()
-                .uri(USER_PATH, 23)
-                .exchange()
+        createUser("{\"id\":23}")
                 .expectStatus().isNotFound()
                 .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody()
                 .jsonPath("$.status").isEqualTo(404)
-                .jsonPath("$.detail").isEqualTo("User with id 23 does not exist");
+                .jsonPath("$.code").isEqualTo("USER_NOT_FOUND")
+                .jsonPath("$.detail").isEqualTo("User does not exist")
+                .jsonPath("$.instance").isEqualTo("/api/v1/users");
     }
 
     @Test
     void createUserReturnsBadGatewayWhenProviderFails() {
         when(createUserUseCase.execute(1L))
-                .thenReturn(Mono.error(new UserProviderException("timeout", new RuntimeException())));
+                .thenReturn(Mono.error(new TechnicalException(USER_PROVIDER_UNAVAILABLE, new RuntimeException())));
 
-        webTestClient.put()
-                .uri(USER_PATH, 1)
-                .exchange()
+        createUser("{\"id\":1}")
                 .expectStatus().isEqualTo(502)
                 .expectBody()
+                .jsonPath("$.code").isEqualTo("USER_PROVIDER_UNAVAILABLE")
                 .jsonPath("$.detail").isEqualTo("User provider is not available, try again later");
     }
 
@@ -123,13 +154,24 @@ class RouterRestTest {
         when(createUserUseCase.execute(1L))
                 .thenReturn(Mono.error(new IllegalStateException("connection refused to db-host:5432")));
 
-        webTestClient.put()
-                .uri(USER_PATH, 1)
-                .exchange()
+        createUser("{\"id\":1}")
                 .expectStatus().is5xxServerError()
                 .expectBody()
                 .jsonPath("$.status").isEqualTo(500)
+                .jsonPath("$.code").isEqualTo("UNEXPECTED_ERROR")
                 .jsonPath("$.detail").isEqualTo("Unexpected error processing the request");
+    }
+
+    @Test
+    void unknownRouteReturnsProblemDetail() {
+        webTestClient.get()
+                .uri("/api/v1/unknown")
+                .exchange()
+                .expectStatus().isNotFound()
+                .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .expectBody()
+                .jsonPath("$.status").isEqualTo(404)
+                .jsonPath("$.instance").isEqualTo("/api/v1/unknown");
     }
 
     @Test
@@ -145,14 +187,14 @@ class RouterRestTest {
 
     @Test
     void getUserReturnsNotFoundMessageWhenUserDoesNotExist() {
-        when(findUsersUseCase.findById(99L)).thenReturn(Mono.error(new UserNotFoundException(99L)));
+        when(findUsersUseCase.findById(99L)).thenReturn(Mono.error(new BusinessException(USER_NOT_FOUND)));
 
         webTestClient.get()
                 .uri(USER_PATH, 99)
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectBody()
-                .jsonPath("$.detail").isEqualTo("User with id 99 does not exist");
+                .jsonPath("$.detail").isEqualTo("User does not exist");
     }
 
     @Test
@@ -199,6 +241,7 @@ class RouterRestTest {
                 .exchange()
                 .expectStatus().isBadRequest()
                 .expectBody()
+                .jsonPath("$.code").isEqualTo("BLANK_NAME_FILTER")
                 .jsonPath("$.detail").isEqualTo("Query parameter 'name' must not be blank");
 
         verify(findUsersUseCase, never()).findByName(any());
@@ -215,5 +258,13 @@ class RouterRestTest {
                 .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody()
                 .jsonPath("$.detail").isEqualTo("Unexpected error processing the request");
+    }
+
+    private WebTestClient.ResponseSpec createUser(String body) {
+        return webTestClient.post()
+                .uri(USERS_PATH)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(body)
+                .exchange();
     }
 }

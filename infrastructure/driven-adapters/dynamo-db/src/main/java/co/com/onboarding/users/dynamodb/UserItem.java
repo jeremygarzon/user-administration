@@ -3,8 +3,6 @@ package co.com.onboarding.users.dynamodb;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
-/* Enhanced DynamoDB annotations are incompatible with Lombok #1932
-         https://github.com/aws/aws-sdk-java-v2/issues/1932*/
 @DynamoDbBean
 public class UserItem {
 

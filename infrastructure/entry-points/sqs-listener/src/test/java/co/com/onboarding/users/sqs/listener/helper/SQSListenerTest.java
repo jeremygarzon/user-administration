@@ -67,7 +67,6 @@ class SQSListenerTest {
                 .client(asyncClient)
                 .properties(sqsProperties)
                 .processor(message -> Mono.empty())
-                .operation("operation")
                 .build();
 
         Flux<Void> flow = ReflectionTestUtils.invokeMethod(sqsListener, "listen");
@@ -87,7 +86,6 @@ class SQSListenerTest {
                 .processor(message -> "poison".equals(message.body())
                         ? Mono.error(new IllegalStateException("cannot process"))
                         : Mono.empty())
-                .operation("operation")
                 .build();
 
         Flux<Void> flow = ReflectionTestUtils.invokeMethod(sqsListener, "listen");

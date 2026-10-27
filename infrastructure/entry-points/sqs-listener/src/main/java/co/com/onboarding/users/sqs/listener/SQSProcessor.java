@@ -11,10 +11,15 @@ import tools.jackson.databind.json.JsonMapper;
 
 import java.util.function.Function;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SQSProcessor implements Function<Message, Mono<Void>> {
+
+    private static final String EVENT_PROCESSED = "User created event processed";
+
     private final ProcessCreatedUserUseCase processCreatedUserUseCase;
     private final JsonMapper jsonMapper;
 
@@ -22,7 +27,7 @@ public class SQSProcessor implements Function<Message, Mono<Void>> {
     public Mono<Void> apply(Message message) {
         return Mono.fromCallable(() -> jsonMapper.readValue(message.body(), User.class))
                 .flatMap(user -> processCreatedUserUseCase.execute(user)
-                        .doOnSuccess(ignored -> log.info("User created event processed for user {} from message {}",
-                                user.id(), message.messageId())));
+                        .doOnSuccess(ignored -> log.info(EVENT_PROCESSED,
+                                kv("userId", user.id()), kv("messageId", message.messageId()))));
     }
 }

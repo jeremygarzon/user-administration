@@ -18,20 +18,23 @@ import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import java.time.Duration;
 import java.util.function.Function;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Slf4j
 @Builder
 public class SQSListener {
     private static final Duration MIN_POLL_BACKOFF = Duration.ofSeconds(1);
     private static final Duration MAX_POLL_BACKOFF = Duration.ofSeconds(30);
+    private static final String METRIC_NAME = "async_operation";
+    private static final String POLL_FAILED = "Error polling sqs queue, retrying";
+    private static final String MESSAGE_FAILED = "Error processing sqs message, it will be redelivered";
 
     private final SqsAsyncClient client;
     private final SQSProperties properties;
     private final Function<Message, Mono<Void>> processor;
     private final Disposable.Composite subscriptions = Disposables.composite();
-    private String operation;
 
     public SQSListener start() {
-        this.operation = "MessageFrom:" + properties.queueUrl();
         Scheduler scheduler = Schedulers.newParallel("sqs-pool", properties.numberOfThreads());
         subscriptions.add(scheduler);
         for (var i = 0; i < properties.numberOfThreads(); i++) {
@@ -51,35 +54,31 @@ public class SQSListener {
                 .repeat()
                 .retryWhen(Retry.backoff(Long.MAX_VALUE, MIN_POLL_BACKOFF)
                         .maxBackoff(MAX_POLL_BACKOFF)
-                        .doBeforeRetry(signal -> log.warn("Error polling sqs queue {}, retry attempt {}: {}",
-                                properties.queueUrl(), signal.totalRetries() + 1, signal.failure().toString())));
+                        .doBeforeRetry(signal -> log.warn(POLL_FAILED, kv("queueUrl", properties.queueUrl()),
+                                kv("attempt", signal.totalRetries() + 1), kv("error", signal.failure().toString()))));
     }
 
     private Flux<Void> listen() {
         return getMessages()
                 .flatMap(message -> processor.apply(message)
-                        .name("async_operation")
-                        .tag("operation", operation)
+                        .name(METRIC_NAME)
+                        .tag("operation", "MessageFrom:" + properties.queueUrl())
                         .metrics()
                         .then(confirm(message))
                         .onErrorResume(error -> {
-                            log.error("Error processing sqs message {}, it will be redelivered",
-                                    message.messageId(), error);
+                            log.error(MESSAGE_FAILED, kv("messageId", message.messageId()), error);
                             return Mono.empty();
                         }),
                         properties.maxNumberOfMessages());
     }
 
     private Mono<Void> confirm(Message message) {
-        return Mono.fromCallable(() -> getDeleteMessageRequest(message.receiptHandle()))
-                .flatMap(request -> Mono.fromFuture(client.deleteMessage(request)))
+        return Mono.fromFuture(() -> client.deleteMessage(getDeleteMessageRequest(message.receiptHandle())))
                 .then();
     }
 
     private Flux<Message> getMessages() {
-        return Mono.fromCallable(this::getReceiveMessageRequest)
-                .flatMap(request -> Mono.fromFuture(client.receiveMessage(request)))
-                .doOnNext(response -> log.debug("{} received messages from sqs", response.messages().size()))
+        return Mono.fromFuture(() -> client.receiveMessage(getReceiveMessageRequest()))
                 .flatMapMany(response -> Flux.fromIterable(response.messages()));
     }
 

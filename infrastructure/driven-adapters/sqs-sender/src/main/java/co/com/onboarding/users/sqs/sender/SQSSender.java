@@ -12,10 +12,16 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import tools.jackson.databind.json.JsonMapper;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class SQSSender implements UserEventPublisherPort {
+
+    private static final String EVENT_SENT = "User created event sent";
+    private static final String EVENT_NOT_SENT = "Could not send user created event";
+
     private final SQSSenderProperties properties;
     private final SqsAsyncClient client;
     private final JsonMapper jsonMapper;
@@ -24,19 +30,16 @@ public class SQSSender implements UserEventPublisherPort {
     public Mono<Void> publishUserCreated(User user) {
         return Mono.fromCallable(() -> jsonMapper.writeValueAsString(user))
                 .flatMap(this::send)
-                .doOnNext(messageId -> log.info("User created event sent for user {} with message id {}",
-                        user.id(), messageId))
+                .doOnNext(messageId -> log.info(EVENT_SENT, kv("userId", user.id()), kv("messageId", messageId)))
                 .onErrorResume(error -> {
-                    log.error("Could not send user created event for user {}", user.id(), error);
+                    log.error(EVENT_NOT_SENT, kv("userId", user.id()), error);
                     return Mono.empty();
                 })
                 .then();
     }
 
-    public Mono<String> send(String message) {
-        return Mono.fromCallable(() -> buildRequest(message))
-                .flatMap(request -> Mono.fromFuture(client.sendMessage(request)))
-                .doOnNext(response -> log.debug("Message sent {}", response.messageId()))
+    private Mono<String> send(String message) {
+        return Mono.fromFuture(() -> client.sendMessage(buildRequest(message)))
                 .map(SendMessageResponse::messageId);
     }
 
