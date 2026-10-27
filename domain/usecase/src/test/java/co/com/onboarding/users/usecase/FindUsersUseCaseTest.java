@@ -1,7 +1,7 @@
 package co.com.onboarding.users.usecase;
 
 import co.com.onboarding.users.model.User;
-import co.com.onboarding.users.model.exception.UserNotFoundException;
+import co.com.onboarding.users.model.exception.BusinessException;
 import co.com.onboarding.users.model.gateways.UserCachePort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
 import org.junit.jupiter.api.Test;
@@ -64,7 +64,7 @@ class FindUsersUseCaseTest {
         when(userRepositoryPort.findById(99L)).thenReturn(Mono.empty());
 
         StepVerifier.create(findUsersUseCase.findById(99L))
-                .expectError(UserNotFoundException.class)
+                .expectError(BusinessException.class)
                 .verify();
 
         verify(userCachePort, never()).save(any());

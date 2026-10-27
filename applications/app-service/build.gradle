@@ -1,5 +1,6 @@
 
 dependencies {
+	implementation 'net.logstash.logback:logstash-logback-encoder:9.0'
 	implementation 'software.amazon.awssdk:sts'
 	implementation 'org.springframework.boot:spring-boot-micrometer-tracing-brave'
 	implementation 'io.micrometer:micrometer-tracing-bridge-brave'

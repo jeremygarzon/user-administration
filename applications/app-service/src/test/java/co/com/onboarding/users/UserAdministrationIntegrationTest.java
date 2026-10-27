@@ -121,14 +121,14 @@ class UserAdministrationIntegrationTest {
 
     @Test
     void createsUserOnceAndStoresItInUppercaseInDynamoDb() {
-        webTestClient.put().uri("/api/v1/users/1")
+        webTestClient.post().uri("/api/v1/users").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"id\":1}")
                 .exchange()
                 .expectStatus().isCreated()
                 .expectHeader().value("Location", location -> assertThat(location).endsWith("/api/v1/users/1"))
                 .expectBody()
                 .jsonPath("$.firstName").isEqualTo("George");
 
-        webTestClient.put().uri("/api/v1/users/1")
+        webTestClient.post().uri("/api/v1/users").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"id\":1}")
                 .exchange()
                 .expectStatus().isOk();
 
@@ -144,7 +144,7 @@ class UserAdministrationIntegrationTest {
 
     @Test
     void findsUserByIdAndCachesIt() throws Exception {
-        webTestClient.put().uri("/api/v1/users/2").exchange().expectStatus().isCreated();
+        webTestClient.post().uri("/api/v1/users").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"id\":2}").exchange().expectStatus().isCreated();
 
         webTestClient.get().uri("/api/v1/users/2")
                 .exchange()
@@ -164,12 +164,12 @@ class UserAdministrationIntegrationTest {
 
     @Test
     void returnsNotFoundWhenProviderDoesNotHaveTheUser() {
-        webTestClient.put().uri("/api/v1/users/23")
+        webTestClient.post().uri("/api/v1/users").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"id\":23}")
                 .exchange()
                 .expectStatus().isNotFound()
                 .expectHeader().contentType(MediaType.APPLICATION_PROBLEM_JSON)
                 .expectBody()
-                .jsonPath("$.detail").isEqualTo("User with id 23 does not exist");
+                .jsonPath("$.code").isEqualTo("USER_NOT_FOUND");
     }
 
     private static String awsEndpoint() {

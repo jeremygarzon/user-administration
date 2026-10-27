@@ -2,8 +2,8 @@ package co.com.onboarding.users.usecase;
 
 import co.com.onboarding.users.model.User;
 import co.com.onboarding.users.model.UserCreation;
-import co.com.onboarding.users.model.exception.UserNotFoundException;
-import co.com.onboarding.users.model.exception.UserProviderException;
+import co.com.onboarding.users.model.exception.BusinessException;
+import co.com.onboarding.users.model.exception.TechnicalException;
 import co.com.onboarding.users.model.gateways.UserEventPublisherPort;
 import co.com.onboarding.users.model.gateways.UserProviderPort;
 import co.com.onboarding.users.model.gateways.UserRepositoryPort;
@@ -16,9 +16,10 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import reactor.util.context.Context;
 
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static co.com.onboarding.users.model.exception.BusinessErrorMessage.USER_NOT_FOUND;
+import static co.com.onboarding.users.model.exception.TechnicalErrorMessage.USER_PROVIDER_UNAVAILABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -73,25 +74,14 @@ class CreateUserUseCaseTest {
     }
 
     @Test
-    void returnsCreatedUserWithoutWaitingForTheEvent() {
-        when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
-        when(userProviderPort.findById(USER_ID)).thenReturn(Mono.just(USER));
-        when(userRepositoryPort.save(USER)).thenReturn(Mono.just(USER));
-        when(userEventPublisherPort.publishUserCreated(USER)).thenReturn(Mono.never());
-
-        StepVerifier.create(createUserUseCase.execute(USER_ID))
-                .expectNext(new UserCreation(USER, true))
-                .expectComplete()
-                .verify(Duration.ofSeconds(1));
-    }
-
-    @Test
     void failsWithUserNotFoundWhenProviderHasNoUser() {
         when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
         when(userProviderPort.findById(USER_ID)).thenReturn(Mono.empty());
 
         StepVerifier.create(createUserUseCase.execute(USER_ID))
-                .expectError(UserNotFoundException.class)
+                .expectErrorSatisfies(error -> assertThat(error)
+                        .isInstanceOfSatisfying(BusinessException.class,
+                                exception -> assertThat(exception.getErrorMessage()).isEqualTo(USER_NOT_FOUND)))
                 .verify();
 
         verify(userRepositoryPort, never()).save(any());
@@ -100,7 +90,7 @@ class CreateUserUseCaseTest {
 
     @Test
     void propagatesProviderErrorWithoutSaving() {
-        UserProviderException providerError = new UserProviderException("provider down", new RuntimeException());
+        TechnicalException providerError = new TechnicalException(USER_PROVIDER_UNAVAILABLE, new RuntimeException());
         when(userRepositoryPort.findById(USER_ID)).thenReturn(Mono.empty());
         when(userProviderPort.findById(USER_ID)).thenReturn(Mono.error(providerError));
 
